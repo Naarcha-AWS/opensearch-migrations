@@ -17,7 +17,6 @@ import org.opensearch.migrations.replay.util.DiagnosticTrackableCompletableFutur
 import org.opensearch.migrations.replay.util.StringTrackableCompletableFuture;
 
 import java.net.URI;
-import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,11 +58,6 @@ public class PacketToTransformingHttpHandlerFactory implements PacketConsumerFac
         });
     }
 
-    NettyPacketToHttpConsumer createNettyHandler(String diagnosticLabel) {
-        return new NettyPacketToHttpConsumer(eventLoopGroup, serverUri, sslContext, diagnosticLabel);
-    }
-
-
     public int getNumConnectionsCreated() {
         return numConnectionsCreated.get();
     }
@@ -88,7 +82,7 @@ public class PacketToTransformingHttpHandlerFactory implements PacketConsumerFac
             try {
                 var channelClosedFuturesArray =
                         connectionId2ChannelCache.asMap().values().stream()
-                                .map(this::closeChannel)
+                                .map(this::closeClientConnectionChannel)
                                 .collect(Collectors.toList());
                 StringTrackableCompletableFuture.<Channel>allOf(channelClosedFuturesArray.stream(),
                         () -> "all channels closed")
@@ -141,13 +135,13 @@ public class PacketToTransformingHttpHandlerFactory implements PacketConsumerFac
         log.atDebug().setMessage(()->"closing connection for " + connId).log();
         var channelsFuture = connectionId2ChannelCache.getIfPresent(connId);
         if (channelsFuture != null) {
-            closeChannel(channelsFuture);
+            closeClientConnectionChannel(channelsFuture);
             connectionId2ChannelCache.invalidate(connId);
         }
     }
 
     private DiagnosticTrackableCompletableFuture<String, Channel>
-    closeChannel(ChannelFuture channelsFuture) {
+    closeClientConnectionChannel(ChannelFuture channelsFuture) {
         var channelClosedFuture =
                 new StringTrackableCompletableFuture<>(new CompletableFuture<Channel>(),
                         ()->"Waiting for closeFuture() on channel");
